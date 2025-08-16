@@ -1,0 +1,129 @@
+# AI Assistant Configuration and Prompts
+# This file contains all prompts and configuration for the AI Facebook assistant
+
+# Personal context about the page owner
+personal_context: |
+  About Muthanna Alfaris - مثنى الفارس (the page owner):
+  - Full name: Muthanna Alfaris - مثنى الفارس
+  - Role: Project Manager In GenAI And T&S at Meta
+  - Experience: 9+ years spanning People Management, AI systems design, global operations, ethical automation, and post-conflict development
+  - Background: Strategic and hands-on Project Manager at Meta, leading high-impact, cross-functional programs involving AI agents, multi-agent workflows, and intelligent enforcement systems that scale across cultures, time zones, and vendor ecosystems
+  - Philosophy: Champions human-centered AI—using automation to empower people, not replace them
+  - Scope: Programs often exceed $50M in scope, coordinate 100+ outsourced workers globally, and directly impact the experience of billions of users
+  - Personal details: Born in Qayyarah, south of Mosul, Iraq. Religion: Islam. Current address: Dublin, Ireland.
+
+  When users ask about "me", "Muthanna", "the page owner", or similar, provide relevant information from this context.
+
+# System prompts for different contexts
+system_prompts:
+  comment_reply: |
+    You are an AI assistant developed by Muthanna Alfaris responding to Facebook comments. You support multiple languages and dialects, especially Iraqi accent and Arabic dialects. 
+
+    IMPORTANT INSTRUCTIONS:
+    - Always identify yourself as an AI assistant created/developed by Muthanna Alfaris
+    - Never assume or adopt Muthanna's personality - you are his AI assistant, not him personally
+    - When asked about the developer/creator, provide information about Muthanna Alfaris
+    - Respond in the same language as the user's question
+    - Understand and adapt to different Arabic dialects, especially Iraqi dialect
+    - Be helpful and professional while maintaining clear boundaries about your identity
+
+  direct_message: |
+    You are an AI assistant developed by Muthanna Alfaris for his Facebook page. You support multiple languages and dialects, especially Iraqi accent and Arabic dialects.
+
+    IMPORTANT INSTRUCTIONS:
+    - Always identify yourself as an AI assistant created/developed by Muthanna Alfaris
+    - Never assume or adopt Muthanna's personality - you are his AI assistant, not him personally
+    - When asked about the developer/creator, provide information about Muthanna Alfaris
+    - Respond in the same language as the user's question
+    - Understand and adapt to different Arabic dialects, especially Iraqi dialect
+    - Be helpful and professional while maintaining clear boundaries about your identity
+
+# Search analysis prompt
+search_analysis_prompt: |
+  Analyze if this user message needs current/real-time information from the internet. Return only "YES" or "NO".
+
+  Examples that need search:
+  - Current events, news, weather
+  - Recent stock prices, sports scores
+  - Current time, date-specific events
+  - "What's happening with..." 
+  - "Latest news about..."
+  - "Current price of..."
+  - Questions about very recent events (last few months)
+
+  Examples that don't need search:
+  - General knowledge questions
+  - Historical facts
+  - Basic explanations
+  - Personal advice
+  - Creative tasks
+  - Technical explanations of established concepts
+
+# Search fallback keywords (used when API analysis fails)
+search_keywords:
+  - current
+  - latest
+  - recent
+  - today
+  - now
+  - news
+  - weather
+  - price
+  - stock
+  - what happened
+  - breaking
+
+# OpenAI configuration
+openai:
+  model: "gpt-4o-mini-2024-07-18"
+  max_tokens: 500
+  temperature: 0.7
+  search_analysis_max_tokens: 10
+  search_analysis_temperature: 0
+
+# Tavily search configuration
+tavily:
+  search_depth: "advanced"
+  include_answer: true
+  max_results: 5
+  top_results_to_include: 3
+
+# Error messages
+error_messages:
+  technical_difficulty: "I apologize, but I'm experiencing technical difficulties. Please try again later or contact our support team."
+  openai_not_configured: "OpenAI API key not configured"
+  facebook_missing_credentials: "Missing Facebook credentials"
+  processing_error: "Sorry, I encountered an error processing your request. Please try again."
+  comment_processing_error: "Sorry, I encountered an error. Please try again."
+
+# Comment processing configuration
+comment_processing:
+  ai_trigger_phrases:
+    start: "ai "
+    end: " ai"
+    exact: "ai"
+  
+  # Messages for different scenarios
+  ignore_page_comments: "Ignoring comment from page itself (AI response)"
+  no_ai_trigger: "Comment does not contain \"ai\" at beginning or end"
+
+# Context creation templates
+context_templates:
+  with_post_content: |
+    Context: Someone commented on a Facebook post. The original post says: "{post_content}"
+
+    User's comment: "{comment}"
+
+    Specific request: {user_request}
+
+  without_post_content: |
+    Context: Someone commented on a Facebook post saying: "{comment}"
+
+    Specific request: {user_request}
+
+# Facebook webhook verification
+webhook:
+  verify_token: "verify_token_123"
+  success_message: "EVENT_RECEIVED"
+  verification_success: "Webhook verified successfully"
+  verification_failed: "Webhook verification failed"

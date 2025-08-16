@@ -1,0 +1,16 @@
+project_id = "byetrxydzttvxnsquuac"
+
+[functions.facebook-webhook]
+verify_jwt = false
+
+[functions.facebook-auth]
+verify_jwt = true
+
+[functions.get-user-pages]
+verify_jwt = true
+
+[functions.check-subscription-status]
+verify_jwt = true
+
+[functions.get-facebook-app-id]
+verify_jwt = false

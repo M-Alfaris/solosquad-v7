@@ -1,0 +1,352 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Lekton Font Classes */
+.lekton-regular {
+  font-family: "Lekton", monospace;
+  font-weight: 400;
+  font-style: normal;
+}
+
+.lekton-bold {
+  font-family: "Lekton", monospace;
+  font-weight: 700;
+  font-style: normal;
+}
+
+.lekton-regular-italic {
+  font-family: "Lekton", monospace;
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Core brand colors */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+
+    /* Primary brand - Facebook blue inspired */
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 221 83% 63%;
+
+    /* Secondary colors */
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+
+    /* Status colors */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 38 92% 50%;
+    --warning-foreground: 240 10% 3.9%;
+
+    /* UI elements */
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 221 83% 53%;
+
+    --radius: 0.75rem;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --gradient-secondary: linear-gradient(135deg, hsl(0 0% 100%), hsl(240 4.8% 95.9%));
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 100%) 0%, hsl(240 4.8% 95.9%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(221 83% 53%) 0%, hsl(221 83% 63%) 50%, hsl(262 83% 58%) 100%);
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(240 5.9% 10% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(240 5.9% 10% / 0.1), 0 2px 4px -1px hsl(240 5.9% 10% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(240 5.9% 10% / 0.1), 0 4px 6px -2px hsl(240 5.9% 10% / 0.05);
+    --shadow-glow: 0 0 20px hsl(var(--primary) / 0.3);
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 221 83% 53%;
+  }
+
+  .light {
+    /* Light theme overrides */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+
+    --sidebar-background: 240 10% 3.9%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 240 3.7% 15.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Lekton", monospace;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Override default font for specific elements */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Lekton", monospace;
+    font-weight: 700;
+  }
+
+  .font-mono {
+    font-family: "Lekton", monospace;
+  }
+}
+
+@layer components {
+  /* Enhanced component styles */
+  .card-gradient {
+    background: var(--gradient-card);
+    border: 1px solid hsl(var(--border));
+  }
+
+  .btn-primary {
+    background: var(--gradient-primary);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-glow);
+  }
+
+  .glass-card {
+    background: hsl(var(--card) / 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border) / 0.5);
+  }
+
+  .glass-card-light {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out forwards;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary));
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary-glow));
+  }
+
+  /* Status indicators */
+  .status-active {
+    @apply bg-success text-success-foreground;
+  }
+
+  .status-inactive {
+    @apply bg-muted text-muted-foreground;
+  }
+
+  .status-trial {
+    @apply bg-warning text-warning-foreground;
+  }
+
+  .status-expired {
+    @apply bg-destructive text-destructive-foreground;
+  }
+
+  /* Dropdown fixes */
+  [data-radix-popper-content-wrapper] {
+    z-index: 9999 !important;
+  }
+
+  .dropdown-content {
+    background: hsl(var(--popover)) !important;
+    border: 1px solid hsl(var(--border)) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Mobile responsiveness improvements */
+  @media (max-width: 768px) {
+    .container {
+      @apply px-4;
+    }
+    
+    .grid-responsive {
+      @apply grid-cols-1 gap-4;
+    }
+    
+    .flex-responsive {
+      @apply flex-col gap-4;
+    }
+
+    /* Improve mobile typography */
+    h1 {
+      @apply text-4xl;
+    }
+
+    h2 {
+      @apply text-3xl;
+    }
+
+    .hero-text {
+      @apply text-lg;
+    }
+  }
+
+  /* Enhanced hover effects */
+  .hover-lift {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Gradient text effects */
+  .gradient-text {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)), hsl(262 83% 58%));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Enhanced button styles */
+  .btn-hero {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    border: none;
+    box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .btn-hero:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 40px rgba(59, 130, 246, 0.4);
+  }
+
+  /* Section spacing improvements */
+  .section-padding {
+    @apply py-20 px-6;
+  }
+
+  @media (max-width: 768px) {
+    .section-padding {
+      @apply py-12 px-4;
+    }
+  }
+}
