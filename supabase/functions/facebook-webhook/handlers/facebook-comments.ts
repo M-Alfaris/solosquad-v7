@@ -342,7 +342,7 @@ export async function processComment(commentData: any, supabase: any) {
     const { data: session, error: sessionError } = await supabase
       .from('chat_sessions')
       .insert({
-        user_id: parseInt(fromId || '0'),
+        user_id: userProfileId,
         chat_id: `comment_${commentId}`,
         messages: JSON.stringify([{
           role: 'user',
@@ -394,6 +394,7 @@ export async function processComment(commentData: any, supabase: any) {
       aiResponse = merged;
       aiError = mergeErr;
     } else {
+      console.log('Invoking process-ai-message for Facebook comment', { commentId, postId, fromId });
       const { data, error } = await supabase.functions.invoke('process-ai-message', {
         body: {
           message: comment,
@@ -404,6 +405,7 @@ export async function processComment(commentData: any, supabase: any) {
           contextualInstructions: facebookContext
         }
       });
+      console.log('process-ai-message response for Facebook comment', { commentId, hasData: !!data, hasError: !!error });
       aiResponse = data;
       aiError = error;
     }
@@ -416,27 +418,36 @@ export async function processComment(commentData: any, supabase: any) {
     // Reply to the comment with user mention
     let aiReplyCommentId = null;
     try {
-      const mentionedResponse = `@[${fromId}] ${aiResponse.response}`;
-      const { replyToComment } = await import('./facebook-api.ts');
-      const response = await replyToComment(commentId, mentionedResponse);
-      console.log('Comment reply response:', response);
-      
-      // Extract the comment ID from the response if available
-      if (response && response.id) {
-        aiReplyCommentId = response.id;
+      const replyText = (aiResponse?.response || '').trim();
+      if (!replyText) {
+        console.warn('No AI response content to reply with; skipping Facebook reply');
+        aiReplyCommentId = null;
+      } else {
+        const mentionedResponse = `@[${fromId}] ${replyText}`;
+        const { replyToComment } = await import('./facebook-api.ts');
+        const response = await replyToComment(commentId, mentionedResponse);
+        console.log('Comment reply response:', response);
+        
+        // Extract the comment ID from the response if available
+        if (response && response.id) {
+          aiReplyCommentId = response.id;
+        }
       }
     } catch (commentError) {
       console.error('Failed to reply to comment, trying alternative approach:', commentError);
       
       // Alternative: Try replying to the post itself instead of the comment
       try {
-        const { replyToPost } = await import('./facebook-api.ts');
-        const postResponse = await replyToPost(postId, `@[${fromId}] ${aiResponse.response}`);
-        console.log('Post reply response:', postResponse);
-        
-        // Extract the comment ID from the response if available
-        if (postResponse && postResponse.id) {
-          aiReplyCommentId = postResponse.id;
+        const replyText = (aiResponse?.response || '').trim();
+        if (replyText) {
+          const { replyToPost } = await import('./facebook-api.ts');
+          const postResponse = await replyToPost(postId, `@[${fromId}] ${replyText}`);
+          console.log('Post reply response:', postResponse);
+          
+          // Extract the comment ID from the response if available
+          if (postResponse && postResponse.id) {
+            aiReplyCommentId = postResponse.id;
+          }
         }
       } catch (postError) {
         console.error('Failed to reply to post as well:', postError);

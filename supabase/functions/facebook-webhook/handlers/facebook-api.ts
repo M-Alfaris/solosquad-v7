@@ -42,9 +42,9 @@ export async function replyToComment(commentId: string, messageText: string) {
   const response = await fetch(`https://graph.facebook.com/v23.0/${commentId}/comments`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: JSON.stringify({
+    body: new URLSearchParams({
       message: messageText,
       access_token: pageAccessToken
     })
@@ -76,9 +76,9 @@ export async function replyToPost(postId: string, messageText: string) {
   const response = await fetch(`https://graph.facebook.com/v23.0/${postId}/comments`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: JSON.stringify({
+    body: new URLSearchParams({
       message: messageText,
       access_token: pageAccessToken
     })
