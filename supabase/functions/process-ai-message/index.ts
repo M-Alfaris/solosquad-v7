@@ -1,21 +1,42 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
+  // Early entry log so we always see something even if JSON parsing fails
+  try {
+    console.log('[process-ai-message] Invocation:', {
+      method: req.method,
+      url: req.url,
+      time: new Date().toISOString(),
+    });
+  } catch (_) {
+    // no-op
+  }
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     // Load configuration from database instead of file
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('[process-ai-message] Missing Supabase env vars', {
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseKey,
+      });
+      return new Response(JSON.stringify({ error: 'Server misconfigured: missing Supabase credentials' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     const supabase = createClient(supabaseUrl, supabaseKey);
     
     const { data: configData } = await supabase
@@ -24,7 +45,16 @@ serve(async (req) => {
       .eq('is_active', true)
       .maybeSingle();
     
-    const body = await req.json();
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch (e) {
+      console.error('[process-ai-message] Failed to parse JSON body:', e);
+      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     const { message, senderId, sessionId, context, postContent, contextualInstructions } = body;
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
 
@@ -40,10 +70,8 @@ serve(async (req) => {
     // Sanitize message content
     const sanitizedMessage = message.trim().substring(0, 4000); // Limit message length
     
-    // Validate sessionId if provided
-    if (sessionId && typeof sessionId !== 'string') {
-      throw new Error('Invalid sessionId format');
-    }
+    // Normalize sessionId (accept string or number)
+    const normalizedSessionId = sessionId == null ? null : String(sessionId);
 
     // Get user memory context
     let userMemoryContext = '';
@@ -79,7 +107,7 @@ serve(async (req) => {
         const { data: sessionData } = await supabase
           .from('chat_sessions')
           .select('messages')
-          .eq('id', sessionId)
+          .eq('id', normalizedSessionId)
           .maybeSingle();
 
         if (sessionData?.messages) {
@@ -127,7 +155,7 @@ serve(async (req) => {
     }
 
     // Create unique conversation identifier to prevent response mixing
-    const conversationId = `${validSenderId}_${sessionId}_${Date.now()}`;
+    const conversationId = `${validSenderId}_${normalizedSessionId ?? 'no-session'}_${Date.now()}`;
     console.log('Conversation ID:', conversationId);
 
     // Analyze if the message needs web search or file search
