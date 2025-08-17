@@ -8,7 +8,12 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  const requestId = crypto.randomUUID();
+  const requestStartMs = Date.now();
+  console.log('process-ai-message: request received', { requestId, method: req.method, url: req.url });
+
   if (req.method === 'OPTIONS') {
+    console.log('process-ai-message: CORS preflight', { requestId });
     return new Response(null, { headers: corsHeaders });
   }
 
@@ -17,16 +22,35 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+    console.log('process-ai-message: env flags', { requestId, hasSupabaseUrl: !!supabaseUrl, hasSupabaseKey: !!supabaseKey });
     
+    const configFetchStartMs = Date.now();
     const { data: configData } = await supabase
       .from('prompt_configurations')
       .select('*')
       .eq('is_active', true)
       .maybeSingle();
+    console.log('process-ai-message: config loaded', { 
+      requestId, 
+      hasConfig: !!configData, 
+      webSearchEnabled: !!(configData as any)?.web_search_enabled,
+      fileSearchEnabled: !!(configData as any)?.file_search_enabled,
+      fileRefs: Array.isArray((configData as any)?.file_references) ? (configData as any).file_references.length : 0,
+      durationMs: Date.now() - configFetchStartMs
+    });
     
     const body = await req.json();
     const { message, senderId, sessionId, context, postContent, contextualInstructions } = body;
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    console.log('process-ai-message: body parsed', { 
+      requestId,
+      context,
+      sessionId,
+      messageLength: typeof message === 'string' ? message.length : null,
+      hasPostContent: !!postContent,
+      hasContextualInstructions: !!contextualInstructions,
+      hasOpenAIKey: !!openaiApiKey
+    });
 
     // Input validation and sanitization
     if (!message || typeof message !== 'string') {
@@ -36,6 +60,7 @@ serve(async (req) => {
     // Allow flexible senderId for testing scenarios
     const validSenderId = senderId || `test-user-${Date.now()}`;
     console.log('Processing AI message for sender', validSenderId, `(session: ${sessionId}):`, message);
+    console.log('process-ai-message: request context', { requestId, validSenderId, sessionId, context });
     
     // Sanitize message content
     const sanitizedMessage = message.trim().substring(0, 4000); // Limit message length
@@ -48,6 +73,8 @@ serve(async (req) => {
     // Get user memory context
     let userMemoryContext = '';
     try {
+      const memoryFetchStartMs = Date.now();
+      console.log('process-ai-message: fetching user memory', { requestId, validSenderId });
       const { data: memoryData } = await supabase.functions.invoke('ai-memory', {
         body: {
           action: 'get_user_context',
@@ -66,8 +93,14 @@ serve(async (req) => {
       if (memoryData?.profile) {
         userMemoryContext += `\nUser Profile: Interactions: ${memoryData.profile.interaction_count || 0}, Member since: ${memoryData.profile.first_interaction || 'Unknown'}`;
       }
+      console.log('process-ai-message: user memory fetched', { 
+        requestId,
+        recentMemories: memoryData?.recent_memories?.length || 0,
+        hasProfile: !!memoryData?.profile,
+        durationMs: Date.now() - memoryFetchStartMs
+      });
     } catch (memoryError) {
-      console.error('Error retrieving user memory:', memoryError);
+      console.error('Error retrieving user memory:', memoryError, { requestId });
     }
 
     // If postContent is not provided but we have context indicating this is a comment, try to get it from the database
@@ -75,23 +108,25 @@ serve(async (req) => {
     if (context === 'comment_reply' && !postContent) {
       console.log('Attempting to retrieve post content from database...');
       try {
+        const sessionFetchStartMs = Date.now();
         // Get session data to find the post_id
         const { data: sessionData } = await supabase
           .from('chat_sessions')
           .select('messages')
           .eq('id', sessionId)
           .maybeSingle();
+        console.log('process-ai-message: session data fetched for post content', { requestId, hasMessages: !!sessionData?.messages, durationMs: Date.now() - sessionFetchStartMs });
 
         if (sessionData?.messages) {
           const messages = JSON.parse(sessionData.messages);
           const userMessage = messages.find((msg: any) => msg.role === 'user');
           if (userMessage?.post_content) {
             actualPostContent = userMessage.post_content;
-            console.log('Retrieved post content from session data');
+            console.log('Retrieved post content from session data', { requestId, length: String(actualPostContent).length });
           }
         }
       } catch (error) {
-        console.error('Error retrieving post content from database:', error);
+        console.error('Error retrieving post content from database:', error, { requestId });
       }
     }
 
@@ -101,9 +136,11 @@ serve(async (req) => {
     const isPostRelated = postRelatedKeywords.some(keyword => 
       message.toLowerCase().includes(keyword)
     );
+    console.log('process-ai-message: post-related detection', { requestId, isPostRelated });
 
     if (isPostRelated) {
       try {
+        const pineconeStartMs = Date.now();
         const { data: searchResults } = await supabase.functions.invoke('pinecone-search', {
           body: {
             action: 'search_posts',
@@ -117,25 +154,31 @@ serve(async (req) => {
             relevantPostContent = `\n\nRelevant Post Content Found:\nAuthor: ${topResult.postAuthor}\nContent: ${topResult.fullContent}`;
           }
         }
+        console.log('process-ai-message: pinecone search completed', { requestId, hadResults: !!searchResults?.results?.length, topScore: searchResults?.results?.[0]?.score ?? null, durationMs: Date.now() - pineconeStartMs });
       } catch (searchError) {
-        console.log('Post search failed (non-critical):', searchError);
+        console.log('Post search failed (non-critical):', searchError, { requestId });
       }
     }
 
     if (!openaiApiKey) {
+      console.error('process-ai-message: OPENAI_API_KEY missing', { requestId });
       throw new Error('OpenAI API key not configured');
     }
 
     // Create unique conversation identifier to prevent response mixing
     const conversationId = `${validSenderId}_${sessionId}_${Date.now()}`;
-    console.log('Conversation ID:', conversationId);
+    console.log('Conversation ID:', conversationId, 'requestId:', requestId);
 
     // Analyze if the message needs web search or file search
+    const analyzeWebStartMs = Date.now();
     const needsWebSearch = configData?.web_search_enabled && await analyzeIfNeedsSearch(sanitizedMessage, openaiApiKey, 'web');
+    const analyzeWebMs = Date.now() - analyzeWebStartMs;
+    const analyzeFileStartMs = Date.now();
     const needsFileSearch = configData?.file_search_enabled && configData?.file_references?.length > 0 && await analyzeIfNeedsSearch(sanitizedMessage, openaiApiKey, 'file');
+    const analyzeFileMs = Date.now() - analyzeFileStartMs;
     
-    console.log('Needs web search:', needsWebSearch);
-    console.log('Needs file search:', needsFileSearch);
+    console.log('Needs web search:', needsWebSearch, '(analysisMs:', analyzeWebMs, ')');
+    console.log('Needs file search:', needsFileSearch, '(analysisMs:', analyzeFileMs, ')');
     
     let searchResults = '';
     let fileResults = '';
@@ -144,15 +187,19 @@ serve(async (req) => {
       const tavilyApiKey = Deno.env.get('TAVILY_API_KEY');
       if (tavilyApiKey) {
         console.log('Performing web search...');
+        const webSearchStartMs = Date.now();
         searchResults = await performWebSearch(sanitizedMessage, tavilyApiKey);
-        console.log('Web search results obtained');
+        console.log('Web search results obtained', { requestId, conversationId, durationMs: Date.now() - webSearchStartMs, resultsLength: searchResults ? searchResults.length : 0 });
+      } else {
+        console.log('TAVILY_API_KEY not configured; web search skipped', { requestId, conversationId });
       }
     }
     
     if (needsFileSearch) {
       console.log('Performing file search...');
-      fileResults = await performFileSearch(sanitizedMessage, configData.file_references, supabase);
-      console.log('File search results obtained');
+      const fileSearchStartMs = Date.now();
+      fileResults = await performFileSearch(sanitizedMessage, (configData as any).file_references, supabase);
+      console.log('File search results obtained', { requestId, conversationId, durationMs: Date.now() - fileSearchStartMs, resultsLength: fileResults ? fileResults.length : 0, fileRefCount: Array.isArray((configData as any)?.file_references) ? (configData as any).file_references.length : 0 });
     }
 
     // Get the system prompt from config
@@ -213,7 +260,18 @@ If you don't know something, politely say so and offer to connect them with a hu
 
 IMPORTANT: This is a unique conversation (ID: ${conversationId}). Use the conversation history to provide contextual responses, but respond specifically to THIS user's current question.`;
 
+    console.log('process-ai-message: system prompt prepared', { 
+      requestId,
+      conversationId,
+      promptLength: enhancedSystemPrompt.length,
+      hasSearchResults: !!searchResults,
+      hasFileResults: !!fileResults,
+      hasUserMemoryContext: !!userMemoryContext,
+      hasContextualInstructions: !!contextualInstructions
+    });
+
     // Call OpenAI API using config values
+    const openaiStartMs = Date.now();
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -237,7 +295,9 @@ IMPORTANT: This is a unique conversation (ID: ${conversationId}). Use the conver
       }),
     });
 
+    const openaiResponseMs = Date.now() - openaiStartMs;
     if (!response.ok) {
+      console.error('OpenAI API error status:', response.status, { requestId, conversationId, durationMs: openaiResponseMs });
       const errorData = await response.json();
       console.error('OpenAI API error:', errorData);
       throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
@@ -245,6 +305,7 @@ IMPORTANT: This is a unique conversation (ID: ${conversationId}). Use the conver
 
     const data = await response.json();
     const aiResponse = data.choices[0].message.content;
+    console.log('process-ai-message: OpenAI call completed', { requestId, conversationId, durationMs: openaiResponseMs, usage: (data as any)?.usage || null });
 
     console.log(`AI response generated for conversation ${conversationId}:`, aiResponse);
 
@@ -256,7 +317,8 @@ IMPORTANT: This is a unique conversation (ID: ${conversationId}). Use the conver
       if (needsFileSearch && !!fileResults) toolsUsed.push('file_search');
 
       // Store user message
-      await supabase.functions.invoke('ai-memory', {
+      const memoryStoreUserStart = Date.now();
+      const { data: storeUserData, error: storeUserError } = await supabase.functions.invoke('ai-memory', {
         body: {
           action: 'store_memory',
           user_id: validSenderId,
@@ -272,9 +334,11 @@ IMPORTANT: This is a unique conversation (ID: ${conversationId}). Use the conver
           tools_used: []
         }
       });
+      console.log('process-ai-message: stored user memory', { requestId, conversationId, durationMs: Date.now() - memoryStoreUserStart, error: storeUserError || null });
 
       // Store AI response
-      await supabase.functions.invoke('ai-memory', {
+      const memoryStoreAIStart = Date.now();
+      const { data: storeAIData, error: storeAIError } = await supabase.functions.invoke('ai-memory', {
         body: {
           action: 'store_memory',
           user_id: validSenderId,
@@ -291,10 +355,12 @@ IMPORTANT: This is a unique conversation (ID: ${conversationId}). Use the conver
           tools_used: toolsUsed
         }
       });
+      console.log('process-ai-message: stored AI memory', { requestId, conversationId, durationMs: Date.now() - memoryStoreAIStart, error: storeAIError || null, toolsUsed });
     } catch (memoryStoreError) {
-      console.error('Error storing conversation memory:', memoryStoreError);
+      console.error('Error storing conversation memory:', memoryStoreError, { requestId, conversationId });
     }
 
+    console.log('process-ai-message: responding with success', { requestId, conversationId, usedWebSearch: needsWebSearch && !!searchResults, usedFileSearch: needsFileSearch && !!fileResults, totalRequestMs: Date.now() - requestStartMs });
     return new Response(JSON.stringify({ 
       response: aiResponse,
       sessionId: sessionId,
@@ -307,12 +373,13 @@ IMPORTANT: This is a unique conversation (ID: ${conversationId}). Use the conver
     });
 
   } catch (error) {
-    console.error('Error in process-ai-message function:', error);
+    console.error('Error in process-ai-message function:', error, { requestId, stack: (error as any)?.stack });
     
     let errorMessage = "I apologize, but I'm experiencing technical difficulties. Please try again later or contact our support team.";
+    console.log('process-ai-message: responding with error', { requestId, totalRequestMs: Date.now() - requestStartMs });
     
     return new Response(JSON.stringify({ 
-      error: error.message,
+      error: (error as any)?.message,
       response: errorMessage
     }), {
       status: 500,
@@ -385,6 +452,7 @@ async function performWebSearch(query: string, tavilyApiKey: string): Promise<st
     }
 
     const data = await response.json();
+    console.log('performWebSearch: parsed response', { numResults: Array.isArray((data as any)?.results) ? (data as any).results.length : 0, hasAnswer: !!(data as any)?.answer });
     
     if (data.answer) {
       // Use Tavily's direct answer if available
@@ -419,6 +487,7 @@ async function performWebSearch(query: string, tavilyApiKey: string): Promise<st
 
 async function performFileSearch(query: string, fileReferences: any[], supabase: any): Promise<string> {
   try {
+    console.log('performFileSearch: start', { numFiles: Array.isArray(fileReferences) ? fileReferences.length : 0, queryLength: typeof query === 'string' ? query.length : null });
     const searchResults: Array<{
       fileName: string;
       content: string;
@@ -453,6 +522,7 @@ async function performFileSearch(query: string, fileReferences: any[], supabase:
 
         // Simple text search - check if query terms appear in content
         const relevanceScore = calculateRelevance(query, content);
+        console.log('performFileSearch: processed file', { name: fileRef.name, type: fileRef.type, contentLength: content ? content.length : 0, relevanceScore });
         
         if (relevanceScore > 0) {
           searchResults.push({
@@ -469,6 +539,7 @@ async function performFileSearch(query: string, fileReferences: any[], supabase:
 
     // Sort by relevance score
     searchResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    console.log('performFileSearch: end', { numResults: searchResults.length });
 
     // Format results for AI context
     if (searchResults.length === 0) {
